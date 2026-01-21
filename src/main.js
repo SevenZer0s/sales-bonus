@@ -122,7 +122,7 @@ function analyzeSalesData(data, options) {
         
         // Формируем топ-10 товаров
         seller.top_products = Object.entries(seller.products_sold) // Преобразовываем массив {[]: } => [[]]
-        seller.top_products = seller.top_products.map(([[key, value]]) => ([{sku: key, quantity: value}])) // Трансформируем [[]] => [{}]
+        seller.top_products = seller.top_products.map(([key, value]) => ({sku: key, quantity: value})) // Трансформируем [[]] => [{}]
         seller.top_products = seller.top_products.sort((a, b) => b.quantity - a.quantity) // Сортировка по убыванию
         seller.top_products = seller.top_products.slice(0, 10) // Слайсим первые 10 элементов
     }); 
