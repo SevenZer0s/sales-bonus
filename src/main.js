@@ -59,13 +59,13 @@ function analyzeSalesData(data, options) {
     // @TODO: Проверка наличия опций
 
     if (typeof options === null || typeof options !== 'object') {
-        throw new Error('Опции должны быть - Обьектом');
+        throw new Error('Опции должны быть - Обьектом')
     }
 
     const { calculateRevenue, calculateBonus } = options; // функция для расчетов
 
     if (typeof calculateRevenue !== "function" || typeof calculateBonus !== "function") {
-        throw new Error('Не является функцией - передайте функцию');
+        throw new Error('Не является функцией - передайте функцию')
     }
 
     // @TODO: Подготовка промежуточных данных для сбора статистики
@@ -83,18 +83,57 @@ function analyzeSalesData(data, options) {
 
     // Индексация продавцов
 
-    const sellerIndex = Object.fromEntries(sellerStats.map(sellers => [sellers.id, sellers]));
+    const sellerIndex = Object.fromEntries(sellerStats.map(sellers => [sellers.id, sellers]))
     // console.log(sellerIndex)
     // Индексация товаров
 
-    const productIndex = Object.fromEntries(data.products.map(products => [products.sku, products]));
+    const productIndex = Object.fromEntries(data.products.map(products => [products.sku, products]))
     // console.log(productIndex)
 
     // @TODO: Расчет выручки и прибыли для каждого продавца
 
+    data.purchase_records.forEach(record => { // Чек
+        const seller = sellerIndex[record.seller_id] // Продавец
+        seller.sales_count += 1 // Увеличить количество продаж 
+        seller.revenue += record.total_amount // Увеличить общую сумму выручки всех продаж
+    
+
+        // Расчёт прибыли для каждого товара
+        record.items.forEach(item => {
+            const product = productIndex[item.sku]; // Товар
+            const cost = product.purchase_price * item.quantity // Посчитать себестоимость (cost) товара как product.purchase_price, умноженную на количество товаров из чека
+            const revenue = calculateRevenue(item, product) // Посчитать выручку (revenue) с учётом скидки через функцию calculateRevenue
+            const profit = revenue - cost // Посчитать прибыль: выручка минус себестоимость
+            seller.profit += profit // Увеличить общую накопленную прибыль (profit) у продавца  
+
+            // Учёт количества проданных товаров
+            if (!seller.products_sold[item.sku]) {
+                seller.products_sold[item.sku] = 0;
+            }
+            seller.products_sold[item.sku] += item.quantity // По артикулу товара увеличить его проданное количество у продавца
+        });
+    })
     // @TODO: Сортировка продавцов по прибыли
+    sellerStats.sort((a, b) => b.profit - a.profit)
 
     // @TODO: Назначение премий на основе ранжирования
-
+    sellerStats.forEach((seller, index) => {
+        seller.bonus = calculateBonus(index, sellerStats.length, seller) // Считаем бонус
+        
+        // Формируем топ-10 товаров
+        seller.top_products = Object.entries(seller.products_sold) // Преобразовываем массив {[]: } => [[]]
+        seller.top_products = seller.top_products.map(([[key, value]]) => ([{sku: key, quantity: value}])) // Трансформируем [[]] => [{}]
+        seller.top_products = seller.top_products.sort((a, b) => b.quantity - a.quantity) // Сортировка по убыванию
+        seller.top_products = seller.top_products.slice(0, 10) // Слайсим первые 10 элементов
+    }); 
     // @TODO: Подготовка итоговой коллекции с нужными полями
+    return sellerStats.map(seller => ({
+        seller_id: seller.id, // Строка, идентификатор продавца
+        name: seller.name, // Строка, имя продавца
+        revenue: +seller.revenue.toFixed(2), // Число с двумя знаками после точки, выручка продавца
+        profit: +seller.profit.toFixed(2), // Число с двумя знаками после точки, прибыль продавца
+        sales_count: seller.sales_count, // Целое число, количество продаж продавца
+        top_products: seller.top_products, // Массив объектов вида: { "sku": "SKU_008","quantity": 10}, топ-10 товаров продавца
+        bonus: +seller.bonus.toFixed(2), // Число с двумя знаками после точки, бонус продавца
+})); 
 }
